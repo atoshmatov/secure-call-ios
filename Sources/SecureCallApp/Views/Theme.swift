@@ -36,4 +36,12 @@ public extension Color {
             opacity: alpha
         )
     }
+
+    init(hexString: String) {
+        var str = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if str.hasPrefix("#") { str.removeFirst() }
+        var rgbValue: UInt64 = 0
+        Scanner(string: str).scanHexInt64(&rgbValue)
+        self.init(hex: UInt(rgbValue))
+    }
 }

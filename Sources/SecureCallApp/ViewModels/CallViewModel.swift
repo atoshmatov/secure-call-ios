@@ -43,10 +43,15 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     @Published public var isMuted: Bool = false
     @Published public var isSpeakerOn: Bool = false
 
+    public let contactsManager = ContactsManager()
+    @Published public var contacts: [Contact] = []
+    @Published public var callHistory: [CallHistoryItem] = []
+
     private let signalingClient = SignalingClient()
     private let audioEngine = AudioCallEngine()
     private var myEphemeralKeys: EphemeralKeys?
     private var durationTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
 
     public init() {
         self.deviceId = UUID().uuidString.prefix(8).lowercased()
@@ -54,6 +59,15 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
         self.signalingClient.delegate = self
         generateFreshKeys()
+
+        // Sync contacts and history
+        contactsManager.$contacts
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$contacts)
+
+        contactsManager.$callHistory
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$callHistory)
 
         self.audioEngine.onAmplitudeChanged = { [weak self] amp in
             DispatchQueue.main.async {
@@ -134,6 +148,9 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         guard let offer = incomingOffer else { return }
         incomingOffer = nil
 
+        // Tarixga o'tkazib yuborilgan deb yozish
+        contactsManager.addCallRecord(peerId: offer.callerId, direction: .missed, durationSeconds: 0)
+
         signalingClient.sendCallAnswer(
             callId: offer.callId,
             callerId: offer.callerId,
@@ -146,6 +163,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
     public func endCall(reason: String = "hangup") {
         if let call = activeCall {
+            let dir: CallDirection = call.isCaller ? .outgoing : .incoming
+            contactsManager.addCallRecord(peerId: call.peerId, direction: dir, durationSeconds: callDurationSeconds)
             signalingClient.sendCallEnd(callId: call.callId, fromUserId: myUserId, toUserId: call.peerId, reason: reason)
         }
         audioEngine.stopCallAudio()
@@ -154,6 +173,22 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         activeCall = nil
         callDurationSeconds = 0
         micAmplitude = 0.0
+    }
+
+    public func saveContact(name: String, peerId: String) {
+        contactsManager.addOrUpdateContact(name: name, peerId: peerId)
+    }
+
+    public func deleteContact(id: String) {
+        contactsManager.deleteContact(id: id)
+    }
+
+    public func clearHistory() {
+        contactsManager.clearHistory()
+    }
+
+    public func getContactName(peerId: String) -> String? {
+        return contactsManager.resolvePeerName(peerId: peerId)
     }
 
     public func toggleMute() {
