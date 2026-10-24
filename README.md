@@ -34,6 +34,11 @@ Ilova Android versiyasi ([`secure-call-android`](https://github.com/atoshmatov/s
    * Royal Sapphire (`#3B82F6`) asosiy harakat rangi va Nordic Emerald (`#10B981`) xavfsizlik tasdiq indikatori.
    * Nojo'ya neon yoki o'yin uslubidagi ko'zni charchatuvchi nurlanishlardan xoli, sokin va hashamatli dizayn.
 
+6. **Lokal Kontaktlar Kitobi va Qo'ng'iroqlar Tarixi (Zero-Knowledge):**
+   * Do'stlarning Peer ID larini ism va monogram avatar bilan xavfsiz saqlash.
+   * Oxirgi qo'ng'iroqlar tarixi (kiruvchi, chiquvchi, o'tkazib yuborilgan) va 1-bosishda (1-tap) tezkor qo'ng'iroq qilish.
+   * O'z Peer ID sini bir bosishda xotiraga nusxalash (Copy ID).
+
 ---
 
 ## 📂 Loyiha Tuzilmasi
@@ -47,15 +52,20 @@ secure-call-ios/
 │   │   └── CryptoEngine.swift                # Apple CryptoKit (Curve25519, ChaChaPoly, HKDF, SAS)
 │   ├── Audio/
 │   │   └── AudioCallEngine.swift             # AVAudioEngine, 16kHz PCM, NWConnection UDP
+│   ├── Data/
+│   │   └── ContactsManager.swift             # Sandboxed JSON persistent xotira
+│   ├── Models/
+│   │   └── Models.swift                      # Contact va CallHistoryItem modellari
 │   ├── Signaling/
 │   │   └── SignalingClient.swift             # URLSessionWebSocketTask va signallashuv
 │   ├── ViewModels/
 │   │   └── CallViewModel.swift               # Qo'ng'iroq holati, vaqt va xavfsizlik konteksti
 │   └── Views/
 │       ├── Theme.swift                       # Premium Luxury ranglar palitrasi
-│       ├── HomeView.swift                    # Bosh ekran, Mening Qurilmam, tezkor tanlash
+│       ├── HomeView.swift                    # Bosh ekran, Kontaktlar & Tarix tablari
 │       ├── CallView.swift                    # Faol qo'ng'iroq, vaqt, avatar, audio visualizer
 │       └── Components/
+│           ├── AddContactView.swift          # Yangi kontakt saqlash oynasi
 │           ├── AudioVisualizerView.swift     # Jonli to'lqin barlari
 │           ├── SasVerificationView.swift     # 4 ta Emojili SAS kartasi
 │           ├── IncomingCallView.swift        # Kiruvchi qo'ng'iroq oynasi
