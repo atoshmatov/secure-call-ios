@@ -15,6 +15,47 @@ public struct CallView: View {
             Color.premiumBg
                 .ignoresSafeArea()
 
+            // 1. Masofaviy video tasviri (Full-screen)
+            if let remoteImg = viewModel.remoteVideoImage {
+                Image(uiImage: remoteImg)
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+
+                // Qoramtir gradient (yozuvlar o'qilishi uchun)
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.black.opacity(0.65),
+                        Color.clear,
+                        Color.black.opacity(0.75)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            }
+
+            // 2. Mahalliy kamera prevyusi (Floating PIP card)
+            if let localImg = viewModel.localVideoImage, viewModel.isVideoEnabled {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(uiImage: localImg)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 110, height: 150)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.premiumBorder, lineWidth: 1.5)
+                            )
+                            .padding(.top, 48)
+                            .padding(.trailing, 20)
+                    }
+                    Spacer()
+                }
+            }
+
             if let call = viewModel.activeCall {
                 VStack {
                     // Header: Status dot and duration
@@ -37,52 +78,54 @@ public struct CallView: View {
 
                     Spacer()
 
-                    // Center: Avatar with subtle pulse ring
-                    VStack(spacing: 20) {
-                        ZStack {
-                            if call.callState == .connected || call.callState == .ringing {
+                    // Center: Avatar with subtle pulse ring (Faqat video bo'lmaganda)
+                    if viewModel.remoteVideoImage == nil {
+                        VStack(spacing: 20) {
+                            ZStack {
+                                if call.callState == .connected || call.callState == .ringing {
+                                    Circle()
+                                        .fill(call.callState == .connected ? Color.nordicEmerald.opacity(0.08) : Color.amberWarm.opacity(0.08))
+                                        .frame(width: 160, height: 160)
+                                        .scaleEffect(pulse ? 1.15 : 1.0)
+                                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulse)
+                                }
+
                                 Circle()
-                                    .fill(call.callState == .connected ? Color.nordicEmerald.opacity(0.08) : Color.amberWarm.opacity(0.08))
-                                    .frame(width: 160, height: 160)
-                                    .scaleEffect(pulse ? 1.15 : 1.0)
-                                    .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulse)
+                                    .fill(Color.premiumCard)
+                                    .frame(width: 120, height: 120)
+                                    .overlay(
+                                        Circle().stroke(Color.premiumBorder, lineWidth: 1)
+                                    )
+
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 52))
+                                    .foregroundColor(.textPrimary)
                             }
 
-                            Circle()
-                                .fill(Color.premiumCard)
-                                .frame(width: 120, height: 120)
-                                .overlay(
-                                    Circle().stroke(Color.premiumBorder, lineWidth: 1)
-                                )
+                            // Waveform visualizer
+                            if call.callState == .connected {
+                                AudioVisualizerView(amplitude: viewModel.micAmplitude, isMuted: viewModel.isMuted)
+                                    .padding(.horizontal, 32)
+                            }
 
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 52))
-                                .foregroundColor(.textPrimary)
-                        }
-
-                        // Waveform visualizer
-                        if call.callState == .connected {
-                            AudioVisualizerView(amplitude: viewModel.micAmplitude, isMuted: viewModel.isMuted)
-                                .padding(.horizontal, 32)
-                        }
-
-                        // SAS Verification card
-                        if let sec = call.securityContext, !sec.sasEmojis.isEmpty {
-                            SasVerificationView(emojis: sec.sasEmojis)
-                                .padding(.horizontal, 16)
+                            // SAS Verification card
+                            if let sec = call.securityContext, !sec.sasEmojis.isEmpty {
+                                SasVerificationView(emojis: sec.sasEmojis)
+                                    .padding(.horizontal, 16)
+                            }
                         }
                     }
 
                     Spacer()
 
                     // Bottom: Control Buttons
-                    HStack(spacing: 28) {
-                        // Mute
+                    HStack(spacing: 20) {
+                        // 1. Mute
                         Button(action: { viewModel.toggleMute() }) {
                             Image(systemName: viewModel.isMuted ? "mic.slash.fill" : "mic.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(viewModel.isMuted ? .velvetRose : .textPrimary)
-                                .frame(width: 56, height: 56)
+                                .frame(width: 52, height: 52)
                                 .background(viewModel.isMuted ? Color.velvetRoseMuted : Color.premiumCardElevated)
                                 .clipShape(Circle())
                                 .overlay(
@@ -90,12 +133,25 @@ public struct CallView: View {
                                 )
                         }
 
-                        // Hangup
+                        // 2. Video Toggle
+                        Button(action: { viewModel.toggleVideo() }) {
+                            Image(systemName: viewModel.isVideoEnabled ? "video.fill" : "video.slash.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(viewModel.isVideoEnabled ? .sapphireBlue : .textPrimary)
+                                .frame(width: 52, height: 52)
+                                .background(viewModel.isVideoEnabled ? Color.sapphireBlue.opacity(0.25) : Color.premiumCardElevated)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle().stroke(Color.premiumBorderSubtle, lineWidth: 1)
+                                )
+                        }
+
+                        // 3. Hangup
                         Button(action: { viewModel.endCall() }) {
                             Image(systemName: "phone.down.fill")
                                 .font(.system(size: 26, weight: .bold))
                                 .foregroundColor(.white)
-                                .frame(width: 68, height: 68)
+                                .frame(width: 66, height: 66)
                                 .background(Color.velvetRose)
                                 .clipShape(Circle())
                                 .overlay(
@@ -103,12 +159,12 @@ public struct CallView: View {
                                 )
                         }
 
-                        // Speaker
+                        // 4. Speaker
                         Button(action: { viewModel.toggleSpeaker() }) {
                             Image(systemName: viewModel.isSpeakerOn ? "speaker.wave.3.fill" : "speaker.wave.1.fill")
                                 .font(.system(size: 20))
                                 .foregroundColor(viewModel.isSpeakerOn ? .sapphireBlue : .textPrimary)
-                                .frame(width: 56, height: 56)
+                                .frame(width: 52, height: 52)
                                 .background(viewModel.isSpeakerOn ? Color.sapphireBlue.opacity(0.2) : Color.premiumCardElevated)
                                 .clipShape(Circle())
                                 .overlay(
@@ -116,12 +172,26 @@ public struct CallView: View {
                                 )
                         }
 
-                        // Stats info
-                        Button(action: { showStats = true }) {
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 22))
-                                .foregroundColor(.textSecondary)
-                                .frame(width: 44, height: 44)
+                        // 5. Flip Camera (video bo'lganda) yoki Info (video o'chirilganda)
+                        if viewModel.isVideoEnabled {
+                            Button(action: { viewModel.switchCamera() }) {
+                                Image(systemName: "camera.rotate.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.textPrimary)
+                                    .frame(width: 52, height: 52)
+                                    .background(Color.premiumCardElevated)
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle().stroke(Color.premiumBorderSubtle, lineWidth: 1)
+                                    )
+                            }
+                        } else {
+                            Button(action: { showStats = true }) {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(.textSecondary)
+                                    .frame(width: 44, height: 44)
+                            }
                         }
                     }
                     .padding(.bottom, 36)
@@ -158,9 +228,10 @@ public struct CallView: View {
         case .ringing: return "Jiringlamoqda..."
         case .encrypting: return "E2EE Shifrlanmoqda..."
         case .connected:
-            let m = viewModel.callDurationSeconds / 60
-            let s = viewModel.callDurationSeconds % 60
-            return String(format: "Bog'landi: %02d:%02d", m, s)
+            let mins = viewModel.callDurationSeconds / 60
+            let secs = viewModel.callDurationSeconds % 60
+            let videoTag = viewModel.remoteVideoImage != nil ? " • HD Video (\(viewModel.videoFps) FPS)" : ""
+            return String(format: "Bog'landi: %02d:%02d%@", mins, secs, videoTag)
         case .ended: return "Qo'ng'iroq yakunlandi"
         }
     }

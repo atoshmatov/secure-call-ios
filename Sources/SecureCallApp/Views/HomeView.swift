@@ -215,55 +215,73 @@ public struct HomeView: View {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 10) {
                                         ForEach(viewModel.onlineUsers) { user in
-                                            Button(action: {
-                                                viewModel.startOutgoingCall(targetUserId: user.userId)
-                                            }) {
-                                                VStack(spacing: 6) {
-                                                    ZStack {
-                                                        Circle()
-                                                            .fill(Color.nordicEmerald.opacity(0.18))
-                                                            .frame(width: 44, height: 44)
-                                                            .overlay(
-                                                                Circle().stroke(Color.nordicEmerald.opacity(0.5), lineWidth: 1.5)
-                                                            )
+                                            VStack(spacing: 6) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(Color.nordicEmerald.opacity(0.18))
+                                                        .frame(width: 44, height: 44)
+                                                        .overlay(
+                                                            Circle().stroke(Color.nordicEmerald.opacity(0.5), lineWidth: 1.5)
+                                                        )
 
-                                                        Text(String(user.displayName.prefix(2)).uppercased())
-                                                            .font(.system(size: 16, weight: .bold))
-                                                            .foregroundColor(.nordicEmerald)
-                                                    }
-
-                                                    Text(user.displayName)
-                                                        .font(.system(size: 14, weight: .bold))
-                                                        .foregroundColor(.textPrimary)
-                                                        .lineLimit(1)
-
-                                                    Text("@\(user.userId)")
-                                                        .font(.system(size: 11, design: .monospaced))
-                                                        .foregroundColor(.textSecondary)
-                                                        .lineLimit(1)
-
-                                                    HStack(spacing: 4) {
-                                                        Image(systemName: "phone.fill")
-                                                            .font(.system(size: 11))
-                                                        Text("Ulanish")
-                                                            .font(.system(size: 12, weight: .semibold))
-                                                    }
-                                                    .foregroundColor(.white)
-                                                    .padding(.horizontal, 14)
-                                                    .padding(.vertical, 6)
-                                                    .background(Color.nordicEmerald)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                                    .padding(.top, 4)
+                                                    Text(String(user.displayName.prefix(2)).uppercased())
+                                                        .font(.system(size: 16, weight: .bold))
+                                                        .foregroundColor(.nordicEmerald)
                                                 }
-                                                .frame(width: 150)
-                                                .padding(12)
-                                                .background(Color.premiumSurface)
-                                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
-                                                        .stroke(Color.nordicEmerald.opacity(0.35), lineWidth: 1)
-                                                )
+
+                                                Text(user.displayName)
+                                                    .font(.system(size: 14, weight: .bold))
+                                                    .foregroundColor(.textPrimary)
+                                                    .lineLimit(1)
+
+                                                Text("@\(user.userId)")
+                                                    .font(.system(size: 11, design: .monospaced))
+                                                    .foregroundColor(.textSecondary)
+                                                    .lineLimit(1)
+
+                                                HStack(spacing: 6) {
+                                                    Button(action: {
+                                                        viewModel.startOutgoingCall(targetUserId: user.userId, isVideo: false)
+                                                    }) {
+                                                        HStack(spacing: 3) {
+                                                            Image(systemName: "phone.fill")
+                                                                .font(.system(size: 10))
+                                                            Text("Ovoz")
+                                                                .font(.system(size: 11, weight: .semibold))
+                                                        }
+                                                        .foregroundColor(.white)
+                                                        .frame(maxWidth: .infinity)
+                                                        .padding(.vertical, 6)
+                                                        .background(Color.nordicEmerald)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                    }
+
+                                                    Button(action: {
+                                                        viewModel.startOutgoingCall(targetUserId: user.userId, isVideo: true)
+                                                    }) {
+                                                        HStack(spacing: 3) {
+                                                            Image(systemName: "video.fill")
+                                                                .font(.system(size: 10))
+                                                            Text("Video")
+                                                                .font(.system(size: 11, weight: .semibold))
+                                                        }
+                                                        .foregroundColor(.white)
+                                                        .frame(maxWidth: .infinity)
+                                                        .padding(.vertical, 6)
+                                                        .background(Color.sapphireBlue)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                    }
+                                                }
+                                                .padding(.top, 4)
                                             }
+                                            .frame(width: 165)
+                                            .padding(12)
+                                            .background(Color.premiumSurface)
+                                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 16)
+                                                    .stroke(Color.nordicEmerald.opacity(0.35), lineWidth: 1)
+                                            )
                                         }
                                     }
                                 }
@@ -297,15 +315,31 @@ public struct HomeView: View {
                             )
 
                             Button(action: {
-                                if !targetUserId.trimmingCharacters(in: .whitespaces).isEmpty {
-                                    viewModel.startOutgoingCall(targetUserId: targetUserId.trimmingCharacters(in: .whitespaces))
+                                let id = targetUserId.trimmingCharacters(in: .whitespaces)
+                                if !id.isEmpty {
+                                    viewModel.startOutgoingCall(targetUserId: id, isVideo: false)
                                 }
                             }) {
                                 Image(systemName: "phone.fill")
                                     .font(.system(size: 16))
                                     .foregroundColor(.white)
-                                    .frame(width: 46, height: 46)
+                                    .frame(width: 44, height: 44)
                                     .background(isDialEnabled ? Color.nordicEmerald : Color.premiumSurface)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .disabled(!isDialEnabled)
+
+                            Button(action: {
+                                let id = targetUserId.trimmingCharacters(in: .whitespaces)
+                                if !id.isEmpty {
+                                    viewModel.startOutgoingCall(targetUserId: id, isVideo: true)
+                                }
+                            }) {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(isDialEnabled ? Color.sapphireBlue : Color.premiumSurface)
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .disabled(!isDialEnabled)

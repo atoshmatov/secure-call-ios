@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 public enum CallState {
     case calling
@@ -18,12 +19,15 @@ public struct ActiveCallUiState {
     public var sessionId: Int64 = 0
     public var relayHost: String = ""
     public var relayPort: Int = 50000
+    public var isVideoCall: Bool = false
+    public var isPeerVideoEnabled: Bool = false
 }
 
 public struct IncomingOfferState {
     public let callId: String
     public let callerId: String
     public let callerPublicKey: String
+    public let isVideo: Bool
 }
 
 @MainActor
@@ -44,6 +48,13 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     @Published public var isMuted: Bool = false
     @Published public var isSpeakerOn: Bool = false
 
+    // Video stream state
+    @Published public var remoteVideoImage: UIImage? = nil
+    @Published public var localVideoImage: UIImage? = nil
+    @Published public var isVideoEnabled: Bool = false
+    @Published public var isFrontCamera: Bool = true
+    @Published public var videoFps: Int = 0
+
     public let contactsManager = ContactsManager()
     @Published public var contacts: [Contact] = []
     @Published public var callHistory: [CallHistoryItem] = []
@@ -51,6 +62,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
     private let signalingClient = SignalingClient()
     private let audioEngine = AudioCallEngine()
+    public let videoEngine = VideoCallEngine()
+
     private var myEphemeralKeys: EphemeralKeys?
     private var durationTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -78,6 +91,30 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
                 self?.micAmplitude = amp
             }
         }
+
+        self.audioEngine.onVideoPacketReceived = { [weak self] data in
+            self?.videoEngine.handleIncomingVideoPacket(data)
+        }
+
+        videoEngine.$remoteVideoImage
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$remoteVideoImage)
+
+        videoEngine.$localVideoImage
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$localVideoImage)
+
+        videoEngine.$isVideoEnabled
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isVideoEnabled)
+
+        videoEngine.$isFrontCamera
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isFrontCamera)
+
+        videoEngine.$videoFps
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$videoFps)
     }
 
     public func updateDisplayName(_ newName: String) {
@@ -117,7 +154,7 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         publicKeyPreview = "\(keys.publicKeyBase64.prefix(8))..."
     }
 
-    public func startOutgoingCall(targetUserId: String) {
+    public func startOutgoingCall(targetUserId: String, isVideo: Bool = false) {
         let callId = UUID().uuidString
         generateFreshKeys()
         guard let keys = myEphemeralKeys else { return }
@@ -125,15 +162,17 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         activeCall = ActiveCallUiState(
             callId = callId,
             peerId: targetUserId,
-            isCaller: true,
-            callState: .calling
+            isCaller = true,
+            callState = .calling,
+            isVideoCall = isVideo
         )
 
         signalingClient.sendCallOffer(
             callId: callId,
             callerId: myUserId,
             calleeId: targetUserId,
-            callerPublicKey: keys.publicKeyBase64
+            callerPublicKey: keys.publicKeyBase64,
+            isVideo: isVideo
         )
     }
 
@@ -152,10 +191,12 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
         activeCall = ActiveCallUiState(
             callId = offer.callId,
-            peerId: offer.callerId,
-            isCaller: false,
-            callState: .encrypting,
-            securityContext: secContext
+            peerId = offer.callerId,
+            isCaller = false,
+            callState = .encrypting,
+            securityContext = secContext,
+            isVideoCall = offer.isVideo,
+            isPeerVideoEnabled = offer.isVideo
         )
 
         signalingClient.sendCallAnswer(
@@ -163,7 +204,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
             callerId: offer.callerId,
             calleeId: myUserId,
             calleePublicKey: keys.publicKeyBase64,
-            accepted: true
+            accepted: true,
+            isVideo: offer.isVideo
         )
 
         signalingClient.requestRelay(callId: offer.callId, userId: myUserId)
@@ -173,7 +215,6 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         guard let offer = incomingOffer else { return }
         incomingOffer = nil
 
-        // Tarixga o'tkazib yuborilgan deb yozish
         contactsManager.addCallRecord(peerId: offer.callerId, direction: .missed, durationSeconds: 0)
 
         signalingClient.sendCallAnswer(
@@ -193,6 +234,7 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
             signalingClient.sendCallEnd(callId: call.callId, fromUserId: myUserId, toUserId: call.peerId, reason: reason)
         }
         audioEngine.stopCallAudio()
+        videoEngine.stopSession()
         durationTimer?.invalidate()
         durationTimer = nil
         activeCall = nil
@@ -226,6 +268,21 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         audioEngine.setSpeaker(isSpeakerOn)
     }
 
+    public func toggleVideo() {
+        videoEngine.toggleVideo()
+        guard let call = activeCall else { return }
+        signalingClient.sendVideoState(
+            callId = call.callId,
+            fromUserId: myUserId,
+            toUserId: call.peerId,
+            videoEnabled: videoEngine.isVideoEnabled
+        )
+    }
+
+    public func switchCamera() {
+        videoEngine.switchCamera()
+    }
+
     // MARK: - SignalingClientDelegate
     public func signalingClient(_ client: SignalingClient, didReceiveEvent event: SignalingEvent) {
         switch event {
@@ -241,8 +298,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         case .onlineUsers(let users):
             self.onlineUsers = users.filter { $0.userId != self.myUserId }
 
-        case .incomingCall(let callId, let callerId, let callerPublicKey, _):
-            incomingOffer = IncomingOfferState(callId: callId, callerId: callerId, callerPublicKey: callerPublicKey)
+        case .incomingCall(let callId, let callerId, let callerPublicKey, _, let isVideo):
+            incomingOffer = IncomingOfferState(callId: callId, callerId: callerId, callerPublicKey: callerPublicKey, isVideo: isVideo)
             signalingClient.sendCallRinging(callId: callId, callerId: myUserId, calleeId: callerId)
 
         case .ringing:
@@ -251,11 +308,17 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
                 activeCall = call
             }
 
-        case .callAccepted(_, let calleePublicKey):
-            handleCallAccepted(calleePublicKey: calleePublicKey)
+        case .callAccepted(_, let calleePublicKey, let isVideo):
+            handleCallAccepted(calleePublicKey: calleePublicKey, isVideo: isVideo)
 
         case .callRejected(_, let reason):
             endCall(reason: reason ?? "Rad etildi")
+
+        case .videoStateChanged(let callId, _, let videoEnabled):
+            if var call = activeCall, call.callId == callId {
+                call.isPeerVideoEnabled = videoEnabled
+                activeCall = call
+            }
 
         case .relayInfo(_, let host, let port, let sessionId, _):
             handleRelayInfo(host: host, port: port, sessionId: sessionId)
@@ -271,7 +334,7 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         }
     }
 
-    private func handleCallAccepted(calleePublicKey: String) {
+    private func handleCallAccepted(calleePublicKey: String, isVideo: Bool = false) {
         guard var call = activeCall,
               let myKeys = myEphemeralKeys,
               let peerPublic = try? CryptoEngine.decodePublicKey(base64: calleePublicKey),
@@ -283,6 +346,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
         call.callState = .encrypting
         call.securityContext = secContext
+        call.isVideoCall = call.isVideoCall || isVideo
+        call.isPeerVideoEnabled = isVideo
         activeCall = call
 
         signalingClient.requestRelay(callId: call.callId, userId: myUserId)
@@ -296,6 +361,19 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
         call.relayHost = host
         call.relayPort = port
         activeCall = call
+
+        videoEngine.startSession(
+            sessionId: sessionId,
+            isCaller: call.isCaller,
+            txKey: sec.txKey,
+            rxKey: sec.rxKey,
+            sender: { [weak self] packet in
+                self?.audioEngine.sendPacket(packet)
+            }
+        )
+        if call.isVideoCall {
+            videoEngine.startCamera()
+        }
 
         audioEngine.startCallAudio(
             relayHost: host,

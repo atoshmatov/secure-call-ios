@@ -12,6 +12,8 @@ public final class AudioCallEngine {
 
     public static let magic1: UInt8 = 0x53 // 'S'
     public static let magic2: UInt8 = 0x43 // 'C'
+    public static let packetTypeAudio: UInt8 = 0x01
+    public static let packetTypeVideo: UInt8 = 0x02
 
     private var audioEngine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
@@ -30,6 +32,7 @@ public final class AudioCallEngine {
     private var onSendWsAudio: ((Data) -> Void)?
 
     public var onAmplitudeChanged: ((Float) -> Void)?
+    public var onVideoPacketReceived: ((Data) -> Void)?
 
     private let audioQueue = DispatchQueue(label: "uz.safecity.securecall.audio", qos: .userInteractive)
 
@@ -122,7 +125,7 @@ public final class AudioCallEngine {
 
             guard let encryptedPayload = try? CryptoEngine.encryptAudio(pcm: pcmData, key: txKey, seq: seq) else { return }
 
-            // Maxsus paket: Magic(2B) + SessionId(8B) + SenderType(1B) + Seq(4B) + Payload
+            // Maxsus paket: Magic(2B) + SessionId(8B) + SenderType(1B) + PacketType(1B: 0x01) + Seq(4B) + Payload
             var packet = Data()
             packet.append(AudioCallEngine.magic1)
             packet.append(AudioCallEngine.magic2)
@@ -131,6 +134,7 @@ public final class AudioCallEngine {
             packet.append(Data(bytes: &beSession, count: 8))
 
             packet.append(senderType)
+            packet.append(AudioCallEngine.packetTypeAudio)
 
             var beSeq = UInt32(seq).bigEndian
             packet.append(Data(bytes: &beSeq, count: 4))
@@ -147,24 +151,39 @@ public final class AudioCallEngine {
         }
     }
 
+    public func sendPacket(_ packet: Data) {
+        self.nwConnection?.send(content: packet, completion: .contentProcessed { _ in })
+        self.onSendWsAudio?(packet)
+    }
+
     public func handleIncomingPacketBytes(_ data: Data) {
         audioQueue.async { [weak self] in
-            guard let self = self, self.isRunning, data.count >= 15 else { return }
+            guard let self = self, self.isRunning, data.count >= 16 else { return }
 
             let m1 = data[0]
             let m2 = data[1]
             guard m1 == AudioCallEngine.magic1, m2 == AudioCallEngine.magic2 else { return }
 
-            let seqData = data.subdata(in: 11..<15)
-            let seq = UInt64(seqData.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian })
+            let pType = data[11]
 
-            let cipherData = data.subdata(in: 15..<data.count)
+            // Agar video paket bo'lsa, video dvigateliga jo'natish
+            if pType == AudioCallEngine.packetTypeVideo {
+                self.onVideoPacketReceived?(data)
+                return
+            }
 
-            guard let rxKey = self.currentRxKey,
-                  let decryptedPcm = try? CryptoEngine.decryptAudio(cipherData: cipherData, key: rxKey, seq: seq) else { return }
+            if pType == AudioCallEngine.packetTypeAudio {
+                let seqData = data.subdata(in: 12..<16)
+                let seq = UInt64(seqData.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian })
 
-            self.playPcmData(decryptedPcm)
-            self.packetsReceived += 1
+                let cipherData = data.subdata(in: 16..<data.count)
+
+                guard let rxKey = self.currentRxKey,
+                      let decryptedPcm = try? CryptoEngine.decryptAudio(cipherData: cipherData, key: rxKey, seq: seq) else { return }
+
+                self.playPcmData(decryptedPcm)
+                self.packetsReceived += 1
+            }
         }
     }
 

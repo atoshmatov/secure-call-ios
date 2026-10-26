@@ -17,10 +17,11 @@ public enum SignalingEvent {
     case connected(userId: String)
     case disconnected(reason: String?)
     case onlineUsers(users: [OnlineUserInfo])
-    case incomingCall(callId: String, callerId: String, callerPublicKey: String, audioCodec: String)
+    case incomingCall(callId: String, callerId: String, callerPublicKey: String, audioCodec: String, isVideo: Bool)
     case ringing(callId: String)
-    case callAccepted(callId: String, calleePublicKey: String)
+    case callAccepted(callId: String, calleePublicKey: String, isVideo: Bool)
     case callRejected(callId: String, reason: String?)
+    case videoStateChanged(callId: String, fromUserId: String, videoEnabled: Bool)
     case relayInfo(callId: String, host: String, port: Int, sessionId: Int64, token: String)
     case binaryAudioReceived(data: Data)
     case callEnded(callId: String, reason: String)
@@ -163,11 +164,13 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
                    let callerId = json["callerId"] as? String,
                    let callerPublicKey = json["callerPublicKey"] as? String {
                     let codec = json["audioCodec"] as? String ?? "opus"
+                    let isVideo = json["isVideo"] as? Bool ?? false
                     self.delegate?.signalingClient(self, didReceiveEvent: .incomingCall(
                         callId: callId,
                         callerId: callerId,
                         callerPublicKey: callerPublicKey,
-                        audioCodec: codec
+                        audioCodec: codec,
+                        isVideo: isVideo
                     ))
                 }
 
@@ -179,12 +182,24 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
             case "call_answer":
                 if let callId = json["callId"] as? String,
                    let accepted = json["accepted"] as? Bool {
+                    let isVideo = json["isVideo"] as? Bool ?? false
                     if accepted, let pubKey = json["calleePublicKey"] as? String {
-                        self.delegate?.signalingClient(self, didReceiveEvent: .callAccepted(callId: callId, calleePublicKey: pubKey))
+                        self.delegate?.signalingClient(self, didReceiveEvent: .callAccepted(callId: callId, calleePublicKey: pubKey, isVideo: isVideo))
                     } else {
                         let reason = json["reason"] as? String
                         self.delegate?.signalingClient(self, didReceiveEvent: .callRejected(callId: callId, reason: reason))
                     }
+                }
+
+            case "video_state":
+                if let callId = json["callId"] as? String,
+                   let fromUserId = json["fromUserId"] as? String,
+                   let videoEnabled = json["videoEnabled"] as? Bool {
+                    self.delegate?.signalingClient(self, didReceiveEvent: .videoStateChanged(
+                        callId: callId,
+                        fromUserId: fromUserId,
+                        videoEnabled: videoEnabled
+                    ))
                 }
 
             case "relay_response":
@@ -218,7 +233,7 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
         }
     }
 
-    public func sendCallOffer(callId: String, callerId: String, calleeId: String, callerPublicKey: String) {
+    public func sendCallOffer(callId: String, callerId: String, calleeId: String, callerPublicKey: String, isVideo: Bool = false) {
         let dict: [String: Any] = [
             "type": "call_offer",
             "callId": callId,
@@ -226,6 +241,7 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
             "calleeId": calleeId,
             "callerPublicKey": callerPublicKey,
             "audioCodec": "opus",
+            "isVideo": isVideo,
             "directP2PPreferred": true
         ]
         sendJson(dict)
@@ -241,16 +257,28 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
         sendJson(dict)
     }
 
-    public func sendCallAnswer(callId: String, callerId: String, calleeId: String, calleePublicKey: String?, accepted: Bool, reason: String? = nil) {
+    public func sendCallAnswer(callId: String, callerId: String, calleeId: String, calleePublicKey: String?, accepted: Bool, isVideo: Bool = false, reason: String? = nil) {
         var dict: [String: Any] = [
             "type": "call_answer",
             "callId": callId,
             "callerId": callerId,
             "calleeId": calleeId,
-            "accepted": accepted
+            "accepted": accepted,
+            "isVideo": isVideo
         ]
         if let pubKey = calleePublicKey { dict["calleePublicKey"] = pubKey }
         if let r = reason { dict["reason"] = r }
+        sendJson(dict)
+    }
+
+    public func sendVideoState(callId: String, fromUserId: String, toUserId: String, videoEnabled: Bool) {
+        let dict: [String: Any] = [
+            "type": "video_state",
+            "callId": callId,
+            "fromUserId": fromUserId,
+            "toUserId": toUserId,
+            "videoEnabled": videoEnabled
+        ]
         sendJson(dict)
     }
 
