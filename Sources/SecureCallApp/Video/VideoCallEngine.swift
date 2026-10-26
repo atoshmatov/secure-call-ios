@@ -73,19 +73,25 @@ public final class VideoCallEngine: NSObject, AVCaptureVideoDataOutputSampleBuff
         frameBuffers.removeAll()
     }
 
-    public func toggleVideo() {
-        if isVideoEnabled {
-            stopCamera()
-            DispatchQueue.main.async {
-                self.isVideoEnabled = false
-                self.localVideoImage = nil
+    public func setVideoEnabled(_ enabled: Bool) {
+        if enabled {
+            if !isVideoEnabled {
+                DispatchQueue.main.async { self.isVideoEnabled = true }
+                startCamera()
             }
         } else {
-            DispatchQueue.main.async {
-                self.isVideoEnabled = true
+            if isVideoEnabled {
+                DispatchQueue.main.async {
+                    self.isVideoEnabled = false
+                    self.localVideoImage = nil
+                }
+                stopCamera()
             }
-            startCamera()
         }
+    }
+
+    public func toggleVideo() {
+        setVideoEnabled(!isVideoEnabled)
     }
 
     public func switchCamera() {

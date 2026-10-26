@@ -151,6 +151,10 @@ public final class AudioCallEngine {
         }
     }
 
+    public func sendVideoPacket(_ packet: Data) {
+        self.nwConnection?.send(content: packet, completion: .contentProcessed { _ in })
+    }
+
     public func sendPacket(_ packet: Data) {
         self.nwConnection?.send(content: packet, completion: .contentProcessed { _ in })
         self.onSendWsAudio?(packet)

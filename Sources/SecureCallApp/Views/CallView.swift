@@ -5,9 +5,27 @@ public struct CallView: View {
 
     @State private var pulse = false
     @State private var showStats = false
+    @State private var isVideoSwapped = false
 
     public init(viewModel: CallViewModel) {
         self.viewModel = viewModel
+    }
+
+    private var hasRemote: Bool { viewModel.remoteVideoImage != nil }
+    private var hasLocal: Bool { viewModel.localVideoImage != nil && viewModel.isVideoEnabled }
+
+    private var fullScreenImage: UIImage? {
+        if hasRemote && hasLocal {
+            return isVideoSwapped ? viewModel.localVideoImage : viewModel.remoteVideoImage
+        }
+        return hasRemote ? viewModel.remoteVideoImage : (hasLocal ? viewModel.localVideoImage : nil)
+    }
+
+    private var pipImage: UIImage? {
+        if hasRemote && hasLocal {
+            return isVideoSwapped ? viewModel.remoteVideoImage : viewModel.localVideoImage
+        }
+        return nil
     }
 
     public var body: some View {
@@ -15,9 +33,9 @@ public struct CallView: View {
             Color.premiumBg
                 .ignoresSafeArea()
 
-            // 1. Masofaviy video tasviri (Full-screen)
-            if let remoteImg = viewModel.remoteVideoImage {
-                Image(uiImage: remoteImg)
+            // 1. To'liq ekrandagi video tasviri (Full-screen)
+            if let fullImg = fullScreenImage {
+                Image(uiImage: fullImg)
                     .resizable()
                     .scaledToFill()
                     .ignoresSafeArea()
@@ -35,22 +53,39 @@ public struct CallView: View {
                 .ignoresSafeArea()
             }
 
-            // 2. Mahalliy kamera prevyusi (Floating PIP card)
-            if let localImg = viewModel.localVideoImage, viewModel.isVideoEnabled {
+            // 2. Suzuvchi PIP karta (bosilganda o'rnini almashtiradi)
+            if let pipImg = pipImage {
                 VStack {
                     HStack {
                         Spacer()
-                        Image(uiImage: localImg)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 110, height: 150)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.premiumBorder, lineWidth: 1.5)
-                            )
-                            .padding(.top, 48)
-                            .padding(.trailing, 20)
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isVideoSwapped.toggle()
+                            }
+                        }) {
+                            ZStack(alignment: .bottomTrailing) {
+                                Image(uiImage: pipImg)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 110, height: 150)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.premiumBorder, lineWidth: 1.5)
+                                    )
+
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(6)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Circle())
+                                    .padding(6)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.top, 48)
+                        .padding(.trailing, 20)
                     }
                     Spacer()
                 }
@@ -79,7 +114,7 @@ public struct CallView: View {
                     Spacer()
 
                     // Center: Avatar with subtle pulse ring (Faqat video bo'lmaganda)
-                    if viewModel.remoteVideoImage == nil {
+                    if fullScreenImage == nil {
                         VStack(spacing: 20) {
                             ZStack {
                                 if call.callState == .connected || call.callState == .ringing {
@@ -230,7 +265,7 @@ public struct CallView: View {
         case .connected:
             let mins = viewModel.callDurationSeconds / 60
             let secs = viewModel.callDurationSeconds % 60
-            let videoTag = viewModel.remoteVideoImage != nil ? " • HD Video (\(viewModel.videoFps) FPS)" : ""
+            let videoTag = viewModel.remoteVideoImage != nil ? " • HD Video (\(viewModel.videoFps) FPS)" : (hasLocal ? " • HD Video" : "")
             return String(format: "Bog'landi: %02d:%02d%@", mins, secs, videoTag)
         case .ended: return "Qo'ng'iroq yakunlandi"
         }

@@ -270,9 +270,11 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
     public func toggleVideo() {
         videoEngine.toggleVideo()
-        guard let call = activeCall else { return }
+        guard var call = activeCall else { return }
+        call.isVideoCall = call.isVideoCall || videoEngine.isVideoEnabled
+        activeCall = call
         signalingClient.sendVideoState(
-            callId = call.callId,
+            callId: call.callId,
             fromUserId: myUserId,
             toUserId: call.peerId,
             videoEnabled: videoEngine.isVideoEnabled
@@ -368,11 +370,13 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
             txKey: sec.txKey,
             rxKey: sec.rxKey,
             sender: { [weak self] packet in
-                self?.audioEngine.sendPacket(packet)
+                self?.audioEngine.sendVideoPacket(packet)
             }
         )
         if call.isVideoCall {
-            videoEngine.startCamera()
+            videoEngine.setVideoEnabled(true)
+        } else {
+            videoEngine.setVideoEnabled(false)
         }
 
         audioEngine.startCallAudio(
