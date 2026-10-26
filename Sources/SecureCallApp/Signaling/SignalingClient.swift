@@ -1,8 +1,22 @@
 import Foundation
 
+public struct OnlineUserInfo: Identifiable, Equatable {
+    public var id: String { userId }
+    public let userId: String
+    public let displayName: String
+    public let platform: String
+
+    public init(userId: String, displayName: String, platform: String) {
+        self.userId = userId
+        self.displayName = displayName
+        self.platform = platform
+    }
+}
+
 public enum SignalingEvent {
     case connected(userId: String)
     case disconnected(reason: String?)
+    case onlineUsers(users: [OnlineUserInfo])
     case incomingCall(callId: String, callerId: String, callerPublicKey: String, audioCodec: String)
     case ringing(callId: String)
     case callAccepted(callId: String, calleePublicKey: String)
@@ -25,6 +39,7 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
     private var isConnected = false
     private var serverUrl: String = ""
     private var myUserId: String = ""
+    private var myDisplayName: String = ""
     private var deviceId: String = ""
     private var reconnectTimer: Timer?
 
@@ -32,9 +47,10 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
         super.init()
     }
 
-    public func connect(serverUrl: String, userId: String, deviceId: String) {
+    public func connect(serverUrl: String, userId: String, deviceId: String, displayName: String = "") {
         self.serverUrl = serverUrl
         self.myUserId = userId
+        self.myDisplayName = displayName
         self.deviceId = deviceId
 
         guard let url = URL(string: serverUrl) else { return }
@@ -62,7 +78,8 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
             "type": "register",
             "userId": myUserId,
             "deviceId": deviceId,
-            "platform": "ios"
+            "platform": "ios",
+            "displayName": myDisplayName
         ]
         if let jsonData = try? JSONSerialization.data(withJSONObject: regDict),
            let jsonStr = String(data: jsonData, encoding: .utf8) {
@@ -115,7 +132,7 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
             self.reconnectTimer?.invalidate()
             self.reconnectTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
                 guard let self = self, !self.isConnected else { return }
-                self.connect(serverUrl: self.serverUrl, userId: self.myUserId, deviceId: self.deviceId)
+                self.connect(serverUrl: self.serverUrl, userId: self.myUserId, deviceId: self.deviceId, displayName: self.myDisplayName)
             }
         }
     }
@@ -129,6 +146,17 @@ public final class SignalingClient: NSObject, URLSessionWebSocketDelegate {
             switch type {
             case "registered":
                 break
+
+            case "online_users":
+                if let userDicts = json["users"] as? [[String: Any]] {
+                    let users = userDicts.compactMap { d -> OnlineUserInfo? in
+                        guard let uId = d["userId"] as? String else { return nil }
+                        let dName = d["displayName"] as? String ?? uId
+                        let plat = d["platform"] as? String ?? "unknown"
+                        return OnlineUserInfo(userId: uId, displayName: dName, platform: plat)
+                    }
+                    self.delegate?.signalingClient(self, didReceiveEvent: .onlineUsers(users: users))
+                }
 
             case "call_offer":
                 if let callId = json["callId"] as? String,

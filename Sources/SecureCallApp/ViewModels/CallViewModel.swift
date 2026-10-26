@@ -47,6 +47,7 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     public let contactsManager = ContactsManager()
     @Published public var contacts: [Contact] = []
     @Published public var callHistory: [CallHistoryItem] = []
+    @Published public var onlineUsers: [OnlineUserInfo] = []
 
     private let signalingClient = SignalingClient()
     private let audioEngine = AudioCallEngine()
@@ -82,6 +83,8 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     public func updateDisplayName(_ newName: String) {
         displayName = newName
         KeychainManager.shared.updateDisplayName(newName)
+        signalingClient.disconnect()
+        connect()
     }
 
     public func updateUserId(_ newId: String) {
@@ -99,7 +102,7 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     }
 
     public func connect() {
-        signalingClient.connect(serverUrl: serverUrl, userId: myUserId, deviceId: deviceId)
+        signalingClient.connect(serverUrl: serverUrl, userId: myUserId, deviceId: deviceId, displayName: displayName)
     }
 
     public func updateServerUrl(_ newUrl: String) {
@@ -234,6 +237,9 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
             if activeCall != nil {
                 endCall(reason: "Server aloqasi uzildi")
             }
+
+        case .onlineUsers(let users):
+            self.onlineUsers = users.filter { $0.userId != self.myUserId }
 
         case .incomingCall(let callId, let callerId, let callerPublicKey, _):
             incomingOffer = IncomingOfferState(callId: callId, callerId: callerId, callerPublicKey: callerPublicKey)

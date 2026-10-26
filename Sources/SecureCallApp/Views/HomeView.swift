@@ -181,7 +181,103 @@ public struct HomeView: View {
                                 .stroke(Color.premiumBorder, lineWidth: 1)
                         )
 
-                        // 2. Tezkor Terish Maydoni
+                        // 2. Jonli Onlayn Foydalanuvchilar (Live Online Presence)
+                        VStack(spacing: 12) {
+                            HStack {
+                                Circle()
+                                    .fill(viewModel.onlineUsers.isEmpty ? Color.textTertiary : Color.nordicEmerald)
+                                    .frame(width: 8, height: 8)
+
+                                Text("Hozir Tarmoqda (\(viewModel.onlineUsers.count))")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.textPrimary)
+
+                                Spacer()
+
+                                if !viewModel.onlineUsers.isEmpty {
+                                    Text("Bitta bosishda qo'ng'iroq")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.nordicEmerald)
+                                }
+                            }
+
+                            if viewModel.onlineUsers.isEmpty {
+                                HStack {
+                                    Text("Boshqa faol qurilma yo'q. Ikkinchi tomonda ilova ochilishi bilan bu yerda paydo bo'ladi.")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.textSecondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(Color.premiumSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(viewModel.onlineUsers) { user in
+                                            Button(action: {
+                                                viewModel.startOutgoingCall(targetUserId: user.userId)
+                                            }) {
+                                                VStack(spacing: 6) {
+                                                    ZStack {
+                                                        Circle()
+                                                            .fill(Color.nordicEmerald.opacity(0.18))
+                                                            .frame(width: 44, height: 44)
+                                                            .overlay(
+                                                                Circle().stroke(Color.nordicEmerald.opacity(0.5), lineWidth: 1.5)
+                                                            )
+
+                                                        Text(String(user.displayName.prefix(2)).uppercased())
+                                                            .font(.system(size: 16, weight: .bold))
+                                                            .foregroundColor(.nordicEmerald)
+                                                    }
+
+                                                    Text(user.displayName)
+                                                        .font(.system(size: 14, weight: .bold))
+                                                        .foregroundColor(.textPrimary)
+                                                        .lineLimit(1)
+
+                                                    Text("@\(user.userId)")
+                                                        .font(.system(size: 11, design: .monospaced))
+                                                        .foregroundColor(.textSecondary)
+                                                        .lineLimit(1)
+
+                                                    HStack(spacing: 4) {
+                                                        Image(systemName: "phone.fill")
+                                                            .font(.system(size: 11))
+                                                        Text("Ulanish")
+                                                            .font(.system(size: 12, weight: .semibold))
+                                                    }
+                                                    .foregroundColor(.white)
+                                                    .padding(.horizontal, 14)
+                                                    .padding(.vertical, 6)
+                                                    .background(Color.nordicEmerald)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                                    .padding(.top, 4)
+                                                }
+                                                .frame(width: 150)
+                                                .padding(12)
+                                                .background(Color.premiumSurface)
+                                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 16)
+                                                        .stroke(Color.nordicEmerald.opacity(0.35), lineWidth: 1)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.premiumCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.premiumBorder, lineWidth: 1)
+                        )
+
+                        // 3. Tezkor Terish Maydoni
                         HStack(spacing: 10) {
                             HStack(spacing: 10) {
                                 Image(systemName: "phone.fill")
