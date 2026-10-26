@@ -30,6 +30,7 @@ public struct IncomingOfferState {
 public final class CallViewModel: ObservableObject, SignalingClientDelegate {
 
     @Published public var myUserId: String = ""
+    @Published public var displayName: String = ""
     @Published public var deviceId: String = ""
     @Published public var isConnected: Bool = false
     @Published public var serverUrl: String = "ws://127.0.0.1:8080/ws/signaling"
@@ -54,8 +55,10 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     public init() {
-        self.deviceId = UUID().uuidString.prefix(8).lowercased()
-        self.myUserId = "ios_\(deviceId.prefix(4))"
+        let identity = KeychainManager.shared.getOrCreateIdentity()
+        self.myUserId = identity.userId
+        self.displayName = identity.displayName
+        self.deviceId = identity.deviceId
 
         self.signalingClient.delegate = self
         generateFreshKeys()
@@ -74,6 +77,25 @@ public final class CallViewModel: ObservableObject, SignalingClientDelegate {
                 self?.micAmplitude = amp
             }
         }
+    }
+
+    public func updateDisplayName(_ newName: String) {
+        displayName = newName
+        KeychainManager.shared.updateDisplayName(newName)
+    }
+
+    public func updateUserId(_ newId: String) {
+        myUserId = newId
+        KeychainManager.shared.updateUserId(newId)
+        signalingClient.disconnect()
+        connect()
+    }
+
+    public func regenerateUserId() {
+        let newId = KeychainManager.shared.regenerateUserId()
+        myUserId = newId
+        signalingClient.disconnect()
+        connect()
     }
 
     public func connect() {

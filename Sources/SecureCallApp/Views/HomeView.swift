@@ -14,6 +14,7 @@ public struct HomeView: View {
 
     // Add contact sheet state
     @State private var showAddContact: Bool = false
+    @State private var showEditProfile: Bool = false
     @State private var prefillPeerId: String = ""
     @State private var prefillName: String = ""
 
@@ -76,9 +77,19 @@ public struct HomeView: View {
                         // 1. Mening Qurilmam va Status Kartasi
                         VStack(spacing: 14) {
                             HStack {
-                                Text("Mening Qurilmam")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.textPrimary)
+                                HStack(spacing: 6) {
+                                    Text(viewModel.displayName)
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.textPrimary)
+
+                                    Button(action: {
+                                        showEditProfile = true
+                                    }) {
+                                        Image(systemName: "pencil.circle.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.sapphireBlue)
+                                    }
+                                }
 
                                 Spacer()
 
@@ -98,7 +109,7 @@ public struct HomeView: View {
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
                                         .stroke(viewModel.isConnected ? Color.nordicEmerald.opacity(0.3) : Color.velvetRose.opacity(0.3), lineWidth: 1)
-                                raid: 0)
+                                )
                                 .clipShape(RoundedRectangle(cornerRadius: 20))
                             }
 
@@ -137,6 +148,29 @@ public struct HomeView: View {
                                         .font(.system(size: 13, design: .monospaced))
                                         .foregroundColor(.textSecondary)
                                 }
+                            }
+
+                            // Ulashish (Share Invite Link)
+                            ShareLink(
+                                item: "Menga SecureCall orqali xavfsiz qo'ng'iroq qiling!\nIsmim: \(viewModel.displayName)\nID raqamim: \(viewModel.myUserId)\nIlova havolasi: secall://call?peer=\(viewModel.myUserId)"
+                            ) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.sapphireBlue)
+
+                                    Text("Profil va ID ni do'stlarga ulashish")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.textPrimary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.premiumSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.premiumBorderSubtle, lineWidth: 1)
+                                )
                             }
                         }
                         .padding(18)
@@ -231,6 +265,21 @@ public struct HomeView: View {
                 initialName: prefillName,
                 onSave: { name, peerId in
                     viewModel.saveContact(name: name, peerId: peerId)
+                }
+            )
+        }
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView(
+                currentDisplayName: viewModel.displayName,
+                currentUserId: viewModel.myUserId,
+                onSave: { newName, newId in
+                    viewModel.updateDisplayName(newName)
+                    if newId != viewModel.myUserId {
+                        viewModel.updateUserId(newId)
+                    }
+                },
+                onRegenerateId: {
+                    viewModel.regenerateUserId()
                 }
             )
         }
