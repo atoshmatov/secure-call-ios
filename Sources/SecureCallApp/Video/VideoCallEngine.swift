@@ -176,7 +176,7 @@ public final class VideoCallEngine: NSObject, AVCaptureVideoDataOutputSampleBuff
             let length = min(VideoCallEngine.maxChunkSize, totalSize - offset)
             let chunkData = jpegData.subdata(in: offset..<(offset + length))
 
-            let chunkSeq = (UInt64(frameId) << 16) | UInt64(chunkIdx)
+            let chunkSeq = (UInt64(1) << 48) | (UInt64(frameId) << 16) | UInt64(chunkIdx)
             guard let encryptedChunk = try? CryptoEngine.encryptAudio(pcm: chunkData, key: txKey, seq: chunkSeq) else {
                 continue
             }
@@ -225,7 +225,7 @@ public final class VideoCallEngine: NSObject, AVCaptureVideoDataOutputSampleBuff
         let encryptedChunk = data.subdata(in: 20..<data.count)
 
         guard let rxKey = currentRxKey else { return }
-        let chunkSeq = (UInt64(frameId) << 16) | UInt64(chunkIdx)
+        let chunkSeq = (UInt64(1) << 48) | (UInt64(frameId) << 16) | UInt64(chunkIdx)
 
         guard let decryptedChunk = try? CryptoEngine.decryptAudio(cipherData: encryptedChunk, key: rxKey, seq: chunkSeq) else {
             return
